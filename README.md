@@ -7,14 +7,11 @@ A native Android app to download videos from **YouTube**, **Facebook**, and **In
 - 🎥 YouTube, Facebook, and Instagram support
 - 📺 Resolution picker (360p → 4K)
 - 🎵 MP3 music extraction mode
-- ⚡ Queue system (one-by-one or all-at-once)
-- ⏸️ Pause / Resume / Cancel per download
 - 🌙 Dark and Light mode
-- 📁 Save to Downloads, Movies, Music, Instagram, or Facebook
+- 📁 Save to Downloads
 - 🔔 Progress notifications in status bar
 - 🖼️ Auto thumbnail & title preview
 - 🔄 Auto-updating yt-dlp engine
-- 📱 Mobile-friendly user agent (bypasses IG/FB blocks)
 
 ## Tech Stack
 
@@ -30,8 +27,4 @@ A native Android app to download videos from **YouTube**, **Facebook**, and **In
 - JDK 17
 - Android SDK 34
 
-## Getting Started
 
-```bash
-git clone https://github.com/SilentstrangerX/YFI-Downloader.git
-cd YFI-Downloader
