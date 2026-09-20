@@ -1,0 +1,10 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.YFIDownloader" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorPrimaryVariant">@color/header_end</item>
+        <item name="colorOnPrimary">@color/header_text_primary</item>
+        <item name="android:windowBackground">@color/bg_app</item>
+        <item name="android:statusBarColor" tools:targetApi="l">@color/header_end</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+</resources>

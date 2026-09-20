@@ -1,0 +1,40 @@
+# Android Studio / Gradle
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Build outputs
+app/build/
+app/release/
+app/debug/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Native libraries
+*.so
+
+# Keystores — DO NOT COMMIT
+*.jks
+*.keystore
+keystore.properties
+
+# Kotlin / Java
+*.class
+.kotlin
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

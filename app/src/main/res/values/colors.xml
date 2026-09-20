@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#7E57C2</color>
+
+    <!-- App -->
+    <color name="bg_app">#F5F5F7</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="text_primary">#222222</color>
+    <color name="text_secondary">#666666</color>
+    <color name="text_hint">#AAAAAA</color>
+    <color name="accent">#7E57C2</color>
+    <color name="accent_light">#E8DEF8</color>
+    <color name="credit_text">#999999</color>
+    <color name="bg_btn_secondary_fill">#F0EBFA</color>
+
+    <!-- Header gradient -->
+    <color name="header_start">#7E57C2</color>
+    <color name="header_end">#512DA8</color>
+    <color name="header_text_primary">#FFFFFF</color>
+    <color name="header_text_secondary">#E0D5F5</color>
+</resources>
