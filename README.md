@@ -1,6 +1,6 @@
 # YFI Downloader
 
-A native Android app to download videos from **YouTube**, **Facebook**, and **Instagram** — up to 4K resolution with merged audio.
+A native Android app to download videos from **YouTube**, **Facebook**, and **Instagram** **(can download other website)** — up to 4K resolution with merged audio.
 
 ## Features
 
