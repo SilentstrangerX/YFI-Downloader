@@ -3,9 +3,12 @@ package com.yfi.downloader
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.File
 import java.util.UUID
+import android.content.Intent
+import androidx.core.content.ContextCompat
 
 object DownloadQueueManager {
 
@@ -25,6 +31,7 @@ object DownloadQueueManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queueMutex = Mutex()
+    private const val TAG = "DownloadQueueManager"
 
     @Volatile
     private var downloader: VideoDownloader? = null
@@ -72,6 +79,16 @@ object DownloadQueueManager {
         }
     }
 
+    fun startForegroundServiceSafely() {
+        val ctx = appContext ?: return
+        val serviceIntent = Intent(ctx, DownloadService::class.java)
+        try {
+            ContextCompat.startForegroundService(ctx, serviceIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground service", e)
+        }
+    }
+
     fun setQueueMode(mode: Int) {
         _queueMode.value = mode
         processQueue()
@@ -97,6 +114,7 @@ object DownloadQueueManager {
             saveLocation = saveLocation
         )
         _queue.value = _queue.value + item
+        startForegroundServiceSafely()
         processQueue()
         return item.id
     }
@@ -156,6 +174,8 @@ object DownloadQueueManager {
                 val queued = _queue.value.filter { it.status == DownloadStatus.QUEUED }
                 if (queued.isEmpty()) return@withLock
 
+                startForegroundServiceSafely()
+
                 if (_queueMode.value == QUEUE_MODE_ONE_BY_ONE) {
                     if (activeJobs.isNotEmpty()) return@withLock
                     startDownload(queued.first())
@@ -173,7 +193,6 @@ object DownloadQueueManager {
     private fun startDownload(item: DownloadItem) {
         val dl = downloader
         if (dl == null) {
-            // Not initialized yet - re-queue silently
             updateItem(item.id) {
                 it.copy(status = DownloadStatus.FAILED, statusLine = "Initializing…")
             }
@@ -209,11 +228,14 @@ object DownloadQueueManager {
                         if (pauseRequested.remove(item.id)) {
                             // Paused - do nothing
                         } else {
+                            // ✅ FIX: Call the robust rename function
+                            val renamedPath = renameDownloadedFile(filePath, item.title)
+
                             updateItem(item.id) {
                                 it.copy(
                                     status = DownloadStatus.COMPLETED,
                                     progress = 100f,
-                                    savedPath = filePath,
+                                    savedPath = renamedPath,
                                     statusLine = "Completed"
                                 )
                             }
@@ -255,6 +277,70 @@ object DownloadQueueManager {
         activeJobs[item.id] = job
     }
 
+    // ✅ BULLETPROOF RENAME: Retries for up to 10 seconds to handle Android file locks
+    private fun renameDownloadedFile(originalPath: String, newTitle: String): String {
+        val originalFile = File(originalPath)
+        if (!originalFile.exists()) {
+            Log.e(TAG, "Original file does not exist: $originalPath")
+            return originalPath
+        }
+
+        // Sanitize title (remove illegal characters)
+        var safeTitle = newTitle.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+        if (safeTitle.isBlank()) return originalPath
+
+        // Truncate to avoid path length limits
+        if (safeTitle.length > 80) {
+            safeTitle = safeTitle.take(80).trim()
+        }
+
+        val extension = originalFile.extension
+        var newFile = File(originalFile.parent, "$safeTitle.$extension")
+
+        // Handle duplicate filenames
+        var counter = 1
+        while (newFile.exists()) {
+            newFile = File(originalFile.parent, "$safeTitle ($counter).$extension")
+            counter++
+        }
+
+        // ✅ RETRY LOOP: Try for 10 seconds to defeat Android's file lock
+        var attempts = 0
+        while (attempts < 20) { // 20 * 500ms = 10 seconds
+            try {
+                if (originalFile.renameTo(newFile)) {
+                    Log.d(TAG, "Successfully renamed to: ${newFile.absolutePath}")
+                    appContext?.let { ctx ->
+                        MediaScannerConnection.scanFile(ctx, arrayOf(originalFile.absolutePath), null, null)
+                        MediaScannerConnection.scanFile(ctx, arrayOf(newFile.absolutePath), null, null)
+                    }
+                    return newFile.absolutePath
+                }
+            } catch (e: Exception) {
+                // Ignore and retry
+            }
+            attempts++
+            try { Thread.sleep(500) } catch (_: InterruptedException) { break }
+        }
+
+        // Fallback: Copy + Delete if renameTo completely fails
+        try {
+            Log.w(TAG, "renameTo failed after 10s. Attempting copy+delete fallback.")
+            originalFile.copyTo(newFile, overwrite = true)
+            if (originalFile.delete()) {
+                Log.d(TAG, "Fallback copy+delete successful: ${newFile.absolutePath}")
+                appContext?.let { ctx ->
+                    MediaScannerConnection.scanFile(ctx, arrayOf(newFile.absolutePath), null, null)
+                }
+                return newFile.absolutePath
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fallback copy+delete also failed", e)
+        }
+
+        return originalPath
+    }
+
     private fun updateItem(id: String, transform: (DownloadItem) -> DownloadItem) {
         _queue.value = _queue.value.map {
             if (it.id == id) transform(it) else it
@@ -266,9 +352,12 @@ object DownloadQueueManager {
         if (!ensureInit()) return
 
         val downloading = _queue.value.filter { it.status == DownloadStatus.DOWNLOADING }
+        val queued = _queue.value.filter { it.status == DownloadStatus.QUEUED }
         val manager = NotificationManagerCompat.from(ctx)
 
-        if (downloading.isEmpty()) {
+        if (downloading.isEmpty() && queued.isEmpty()) {
+            val serviceIntent = Intent(ctx, DownloadService::class.java)
+            ctx.stopService(serviceIntent)
             manager.cancel(NOTIFICATION_ID)
             return
         }
@@ -284,10 +373,13 @@ object DownloadQueueManager {
             val item = downloading.first()
             builder.setContentText("${item.progress.toInt()}% • ${item.statusLine.take(40)}")
             builder.setProgress(100, item.progress.toInt(), false)
-        } else {
+        } else if (downloading.isNotEmpty()) {
             val avg = downloading.map { it.progress }.average().toInt()
             builder.setContentText("${downloading.size} downloads in progress")
             builder.setProgress(100, avg, false)
+        } else {
+            builder.setContentText("Waiting in queue...")
+            builder.setProgress(0, 0, true)
         }
 
         try {
