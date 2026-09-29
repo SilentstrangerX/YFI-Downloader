@@ -12,8 +12,8 @@ android {
         applicationId = "com.yfi.downloader"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.5.0"
+        versionCode = 3
+        versionName = "1.9.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
